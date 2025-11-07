@@ -2,7 +2,6 @@ pipeline {
     agent none
 
     stages {
-
         // ============================================================
         // Environment detection (branch -> agent mapping)
         // ============================================================
@@ -10,13 +9,16 @@ pipeline {
             agent any
             steps {
                 script {
-                    // Detect current Git branch
-                    env.GIT_BRANCH_NAME = sh(
-                        script: "git rev-parse --abbrev-ref HEAD",
-                        returnStdout: true
-                    ).trim()
+                    env.GIT_BRANCH_NAME = env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^.*\//, '')
+                    
+                    if (!env.GIT_BRANCH_NAME) {
+                        env.GIT_BRANCH_NAME = sh(
+                            script: "git branch -r --contains HEAD | grep -v HEAD | head -1 | sed 's/.*origin\\///g'",
+                            returnStdout: true
+                        ).trim()
+                    }
 
-                    // Determine target environment and Jenkins agent
+                    // Déterminer l'environnement cible et l'agent
                     if (env.GIT_BRANCH_NAME == "main") {
                         env.DEPLOY_ENV   = "production"
                         env.TARGET_AGENT = "PROD-NODE"
@@ -49,7 +51,10 @@ pipeline {
 
             steps {
                 script {
-                    env.SERVER_IP = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
+                    env.SERVER_IP = sh(
+                        script: 'hostname -I | awk "{print \\$1}"',
+                        returnStdout: true
+                    ).trim()
                     echo "Server IP: ${env.SERVER_IP}"
                 }
 
@@ -115,11 +120,11 @@ server {
     location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files $uri =404;
+        try_files \\$uri =404;
     }
 
     location / {
-        try_files $uri /index.html;
+        try_files \\$uri /index.html;
     }
 
     location = /healthz {
@@ -158,18 +163,23 @@ EOF'
     }
 
     // ============================================================
-    // 3️Post actions
+    // Post actions
     // ============================================================
     post {
         success {
-            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
+            script {
+                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
+            }
         }
         failure {
-            echo "Deployment failed on ${DEPLOY_ENV}"
+            script {
+                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
+            }
         }
         always {
-            echo "🧹 Cleaning up workspace..."
-            cleanWs()
+            script {
+                echo "Pipeline completed"
+            }
         }
     }
 }

@@ -78,6 +78,9 @@ resource "aws_instance" "ansible" {
               
               # Configuration du hostname
               hostnamectl set-hostname ansible-control
+
+              # Installation d'Ansible
+              apt-get install -y ansible
               
               # Installation de Node Exporter pour Prometheus
               useradd --no-create-home --shell /bin/false node_exporter

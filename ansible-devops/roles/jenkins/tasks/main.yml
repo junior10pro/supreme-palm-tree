@@ -136,17 +136,20 @@
     - jenkins
     - password
 
-- name: Afficher le mot de passe initial Jenkins
+- name: Afficher les informations de connexion Jenkins
   debug:
-    msg: "Mot de passe initial Jenkins: {{ jenkins_initial_password.content | b64decode }}"
+    msg: |
+      ========================================
+      JENKINS INSTALLE AVEC SUCCES !
+      ========================================
+      
+      URL d'acces: http://{{ public_ip | default(ansible_host) }}:{{ jenkins_http_port }}
+      
+      Mot de passe initial: {{ jenkins_initial_password.content | b64decode }}
+      
+      ========================================
   when: jenkins_initial_password.content is defined
   tags:
     - jenkins
     - password
-
-- name: Afficher l'URL d'acces a Jenkins
-  debug:
-    msg: "Jenkins est accessible sur: http://{{ ansible_host }}:{{ jenkins_http_port }}"
-  tags:
-    - jenkins
     - info

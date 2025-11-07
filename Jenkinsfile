@@ -49,7 +49,7 @@ pipeline {
 
             steps {
                 script {
-                    env.SERVER_IP = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
+                    env.SERVER_IP = sh(script: 'hostname -I | awk "{print $1}"', returnStdout: true).trim()
                     echo "Server IP: ${env.SERVER_IP}"
                 }
 

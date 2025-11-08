@@ -10,22 +10,20 @@ pipeline {
             agent any
             steps {
                 script {
-                    // Detect current Git branch (use GIT_BRANCH from Jenkins env)
-                    env.GIT_BRANCH_NAME = env.GIT_BRANCH ? env.GIT_BRANCH.replaceAll('origin/', '') : sh(
-                        script: "git symbolic-ref --short HEAD || git rev-parse --abbrev-ref HEAD",
+                    // Detect current Git branch
+                    env.GIT_BRANCH_NAME = sh(
+                        script: "git rev-parse --abbrev-ref HEAD",
                         returnStdout: true
                     ).trim()
 
                     // Determine target environment and Jenkins agent
-                    if (env.GIT_BRANCH_NAME == "main" || env.GIT_BRANCH_NAME == "refs/heads/main") {
+                    if (env.GIT_BRANCH_NAME == "main") {
                         env.DEPLOY_ENV   = "production"
                         env.TARGET_AGENT = "PROD-NODE"
-                    } else if (env.GIT_BRANCH_NAME == "dev" || env.GIT_BRANCH_NAME == "refs/heads/dev") {
+                    } else if (env.GIT_BRANCH_NAME == "dev") {
                         env.DEPLOY_ENV   = "preproduction"
                         env.TARGET_AGENT = "PRE_PROD-NODE"
                     } else {
-                        env.DEPLOY_ENV   = "unknown"
-                        env.TARGET_AGENT = "none"
                         error("Unsupported branch '${env.GIT_BRANCH_NAME}'. Only 'dev' and 'main' are deployable.")
                     }
 
@@ -43,15 +41,15 @@ pipeline {
             agent { label "${env.TARGET_AGENT}" }
 
             environment {
-                APP_PATH     = 'devops-webapp'
-                BUILD_DIR    = 'devops-webapp/build'
+                APP_PATH     = 'devops-app'
+                BUILD_DIR    = 'devops-app/build'
                 DEPLOY_PATH  = '/var/www/devops-dashboard'
                 NGINX_SITE   = '/etc/nginx/sites-available/devops-dashboard'
             }
 
             steps {
                 script {
-                    env.SERVER_IP = sh(script: "hostname -I | awk '{print \$1}'", returnStdout: true).trim()
+                    env.SERVER_IP = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
                     echo "Server IP: ${env.SERVER_IP}"
                 }
 
@@ -67,12 +65,7 @@ pipeline {
                     node -v
                     npm -v
                     cd "$APP_PATH"
-                    
-                    # Install dependencies from package.json
-                    echo "Installing npm dependencies..."
-                    npm install
-                    
-                    echo "Dependencies installed successfully"
+                    npm ci || npm install
                 '''
 
                 // -------------------------------
@@ -122,11 +115,11 @@ server {
     location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files \$uri =404;
+        try_files $uri =404;
     }
 
     location / {
-        try_files \$uri /index.html;
+        try_files $uri /index.html;
     }
 
     location = /healthz {
@@ -161,29 +154,22 @@ EOF'
                     exit 1
                 '''
             }
-            
-            post {
-                always {
-                    echo "🧹 Cleaning up workspace on agent..."
-                    cleanWs()
-                }
-            }
         }
     }
 
     // ============================================================
-    // Post actions
+    // 3️Post actions
     // ============================================================
     post {
         success {
-            script {
-                echo "✅ Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
-            }
+            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
         }
         failure {
-            script {
-                echo "❌ Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
-            }
+            echo "Deployment failed on ${DEPLOY_ENV}"
+        }
+        always {
+            echo "🧹 Cleaning up workspace..."
+            cleanWs()
         }
     }
 }

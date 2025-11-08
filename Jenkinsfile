@@ -50,16 +50,13 @@ pipeline {
 
             steps {
                 // -------------------------------------------------------
-                // Export SERVER_IP in shell, then import into env vars
+                // Get SERVER_IP directly and store in environment
                 // -------------------------------------------------------
-                sh '''
-                    SERVER_IP=$(hostname -I | awk '{print $1}')
-                    echo "SERVER_IP=$SERVER_IP" > server_ip.env
-                '''
-
                 script {
-                    def props = readProperties file: 'server_ip.env'
-                    env.SERVER_IP = props['SERVER_IP']
+                    env.SERVER_IP = sh(
+                        script: "hostname -I | awk '{print \$1}'",
+                        returnStdout: true
+                    ).trim()
                     echo "Server IP detected: ${env.SERVER_IP}"
                 }
 
@@ -125,11 +122,11 @@ server {
     location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files $uri =404;
+        try_files \$uri =404;
     }
 
     location / {
-        try_files $uri /index.html;
+        try_files \$uri /index.html;
     }
 
     location = /healthz {

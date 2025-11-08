@@ -2,6 +2,7 @@ pipeline {
     agent none
 
     stages {
+
         // ============================================================
         // Environment detection (branch -> agent mapping)
         // ============================================================
@@ -9,16 +10,13 @@ pipeline {
             agent any
             steps {
                 script {
-                    env.GIT_BRANCH_NAME = env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^.*\//, '')
-                    
-                    if (!env.GIT_BRANCH_NAME) {
-                        env.GIT_BRANCH_NAME = sh(
-                            script: "git branch -r --contains HEAD | grep -v HEAD | head -1 | sed 's/.*origin\\///g'",
-                            returnStdout: true
-                        ).trim()
-                    }
+                    // Detect current Git branch
+                    env.GIT_BRANCH_NAME = sh(
+                        script: "git rev-parse --abbrev-ref HEAD",
+                        returnStdout: true
+                    ).trim()
 
-                    // Déterminer l'environnement cible et l'agent
+                    // Determine target environment and Jenkins agent
                     if (env.GIT_BRANCH_NAME == "main") {
                         env.DEPLOY_ENV   = "production"
                         env.TARGET_AGENT = "PROD-NODE"
@@ -43,18 +41,15 @@ pipeline {
             agent { label "${env.TARGET_AGENT}" }
 
             environment {
-                APP_PATH     = 'devops-app'
-                BUILD_DIR    = 'devops-app/build'
+                APP_PATH     = 'devops-webapp'
+                BUILD_DIR    = 'devops-webapp/build'
                 DEPLOY_PATH  = '/var/www/devops-dashboard'
                 NGINX_SITE   = '/etc/nginx/sites-available/devops-dashboard'
             }
 
             steps {
                 script {
-                    env.SERVER_IP = sh(
-                        script: 'hostname -I | awk "{print \\$1}"',
-                        returnStdout: true
-                    ).trim()
+                    env.SERVER_IP = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
                     echo "Server IP: ${env.SERVER_IP}"
                 }
 
@@ -120,11 +115,11 @@ server {
     location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files \\$uri =404;
+        try_files $uri =404;
     }
 
     location / {
-        try_files \\$uri /index.html;
+        try_files $uri /index.html;
     }
 
     location = /healthz {
@@ -163,23 +158,18 @@ EOF'
     }
 
     // ============================================================
-    // Post actions
+    // 3️Post actions
     // ============================================================
     post {
         success {
-            script {
-                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
-            }
+            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
         }
         failure {
-            script {
-                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
-            }
+            echo "Deployment failed on ${DEPLOY_ENV}"
         }
         always {
-            script {
-                echo "Pipeline completed"
-            }
+            echo "🧹 Cleaning up workspace..."
+            cleanWs()
         }
     }
 }

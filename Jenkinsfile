@@ -10,20 +10,22 @@ pipeline {
             agent any
             steps {
                 script {
-                    // Detect current Git branch
-                    env.GIT_BRANCH_NAME = sh(
-                        script: "git rev-parse --abbrev-ref HEAD",
+                    // Detect current Git branch (use GIT_BRANCH from Jenkins env)
+                    env.GIT_BRANCH_NAME = env.GIT_BRANCH ? env.GIT_BRANCH.replaceAll('origin/', '') : sh(
+                        script: "git symbolic-ref --short HEAD || git rev-parse --abbrev-ref HEAD",
                         returnStdout: true
                     ).trim()
 
                     // Determine target environment and Jenkins agent
-                    if (env.GIT_BRANCH_NAME == "main") {
+                    if (env.GIT_BRANCH_NAME == "main" || env.GIT_BRANCH_NAME == "refs/heads/main") {
                         env.DEPLOY_ENV   = "production"
                         env.TARGET_AGENT = "PROD-NODE"
-                    } else if (env.GIT_BRANCH_NAME == "dev") {
+                    } else if (env.GIT_BRANCH_NAME == "dev" || env.GIT_BRANCH_NAME == "refs/heads/dev") {
                         env.DEPLOY_ENV   = "preproduction"
                         env.TARGET_AGENT = "PRE_PROD-NODE"
                     } else {
+                        env.DEPLOY_ENV   = "unknown"
+                        env.TARGET_AGENT = "none"
                         error("Unsupported branch '${env.GIT_BRANCH_NAME}'. Only 'dev' and 'main' are deployable.")
                     }
 
@@ -154,6 +156,13 @@ EOF'
                     exit 1
                 '''
             }
+            
+            post {
+                always {
+                    echo "🧹 Cleaning up workspace on agent..."
+                    cleanWs()
+                }
+            }
         }
     }
 
@@ -162,14 +171,14 @@ EOF'
     // ============================================================
     post {
         success {
-            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
+            script {
+                echo "✅ Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
+            }
         }
         failure {
-            echo "Deployment failed on ${DEPLOY_ENV}"
-        }
-        always {
-            echo "🧹 Cleaning up workspace..."
-            cleanWs()
+            script {
+                echo "❌ Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
+            }
         }
     }
 }

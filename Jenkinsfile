@@ -10,12 +10,11 @@ pipeline {
             agent any
             steps {
                 script {
-                    // Use Jenkins environment variables for branch detection
-                    env.GIT_BRANCH_NAME = env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'unknown'
-                    
-                    echo "Detected Git branch: ${env.GIT_BRANCH_NAME}"
+                    env.GIT_BRANCH_NAME = sh(
+                        script: "git rev-parse --abbrev-ref HEAD",
+                        returnStdout: true
+                    ).trim()
 
-                    // Determine target environment and Jenkins agent
                     if (env.GIT_BRANCH_NAME == "main") {
                         env.DEPLOY_ENV   = "production"
                         env.TARGET_AGENT = "PROD-NODE"
@@ -47,9 +46,18 @@ pipeline {
             }
 
             steps {
+                // -------------------------------------------------------
+                // Export SERVER_IP in shell, then import into env vars
+                // -------------------------------------------------------
+                sh '''
+                    SERVER_IP=$(hostname -I | awk '{print $1}')
+                    echo "SERVER_IP=$SERVER_IP" > server_ip.env
+                '''
+
                 script {
-                    env.SERVER_IP = sh(script: "hostname -I | awk '{print \$1}'", returnStdout: true).trim()
-                    echo "Server IP: ${env.SERVER_IP}"
+                    def props = readProperties file: 'server_ip.env'
+                    env.SERVER_IP = props['SERVER_IP']
+                    echo "Server IP detected: ${env.SERVER_IP}"
                 }
 
                 // -------------------------------
@@ -128,7 +136,6 @@ server {
 }
 EOF'
 
-                    # Enable and reload NGINX
                     sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/devops-dashboard
                     sudo rm -f /etc/nginx/sites-enabled/default
                     sudo nginx -t
@@ -161,20 +168,14 @@ EOF'
     // ============================================================
     post {
         success {
-            script {
-                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
-            }
+            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
         }
         failure {
-            script {
-                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
-            }
+            echo "Deployment failed on ${DEPLOY_ENV}"
         }
         always {
-            node('master') {
-                echo "🧹 Cleaning up workspace..."
-                cleanWs()
-            }
+            echo "Cleaning up workspace..."
+            cleanWs()
         }
     }
 }

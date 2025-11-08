@@ -125,25 +125,25 @@ pipeline {
 
                     # Create NGINX site configuration
                     echo "Configuring NGINX..."
-                    sudo bash -c 'cat > '"$NGINX_SITE"' <<EOF
+                    sudo tee "$NGINX_SITE" > /dev/null <<'EOF'
 server {
     listen 80;
     server_name _;
 
-    root '"$DEPLOY_PATH"';
+    root /var/www/devops-dashboard;
     index index.html;
 
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
-    location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files \$uri =404;
+        try_files $uri =404;
     }
 
     location / {
-        try_files \$uri /index.html;
+        try_files $uri /index.html;
     }
 
     location = /healthz {
@@ -151,7 +151,7 @@ server {
         return 200 "ok";
     }
 }
-EOF'
+EOF
 
                     sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/devops-dashboard
                     sudo rm -f /etc/nginx/sites-enabled/default

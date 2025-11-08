@@ -125,7 +125,7 @@ pipeline {
 
                     # Create NGINX site configuration
                     echo "Configuring NGINX..."
-                    sudo tee "$NGINX_SITE" > /dev/null <<'EOF'
+                    cat <<'NGINX_EOF' | sudo tee "$NGINX_SITE" > /dev/null
 server {
     listen 80;
     server_name _;
@@ -136,7 +136,7 @@ server {
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
-    location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
+    location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
         try_files $uri =404;
@@ -151,7 +151,7 @@ server {
         return 200 "ok";
     }
 }
-EOF
+NGINX_EOF
 
                     sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/devops-dashboard
                     sudo rm -f /etc/nginx/sites-enabled/default

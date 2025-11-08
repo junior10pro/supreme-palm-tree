@@ -77,7 +77,7 @@ export default function MonitoringDashboard() {
       if (e.code === "ECONNABORTED") {
         errorMsg = "Request timeout - Server not responding";
       } else if (e.code === "ERR_NETWORK") {
-        errorMsg = `Cannot connect to ${API_URL}`;
+        errorMsg = `Cannot connect to Metrics server;`
       } else if (e.response) {
         errorMsg = `Server error: ${e.response.status}`;
       }
@@ -152,7 +152,7 @@ export default function MonitoringDashboard() {
         borderRadius: "8px",
         marginBottom: "20px"
       }}>
-        ✅ Connected to {API_URL}
+        ✅ Connected to METRICS SERVER
       </div>
 
       {/* Summary */}

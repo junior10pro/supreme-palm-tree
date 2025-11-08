@@ -68,16 +68,9 @@ pipeline {
                     npm -v
                     cd "$APP_PATH"
                     
-                    # Clean install with proper dependency resolution
+                    # Install dependencies from package.json
                     echo "Installing npm dependencies..."
-                    rm -rf node_modules package-lock.json
                     npm install
-                    
-                    # Install axios explicitly if not in package.json
-                    if ! npm list axios >/dev/null 2>&1; then
-                        echo "Installing axios..."
-                        npm install axios
-                    fi
                     
                     echo "Dependencies installed successfully"
                 '''
@@ -171,7 +164,7 @@ EOF'
             
             post {
                 always {
-                    echo "Cleaning up workspace on agent..."
+                    echo "🧹 Cleaning up workspace on agent..."
                     cleanWs()
                 }
             }
@@ -184,12 +177,12 @@ EOF'
     post {
         success {
             script {
-                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
+                echo "✅ Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
             }
         }
         failure {
             script {
-                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
+                echo "❌ Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
             }
         }
     }

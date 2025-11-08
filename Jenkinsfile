@@ -10,10 +10,13 @@ pipeline {
             agent any
             steps {
                 script {
-                    env.GIT_BRANCH_NAME = sh(
-                        script: "git rev-parse --abbrev-ref HEAD",
-                        returnStdout: true
-                    ).trim()
+                    // Use Jenkins environment variable instead of git command
+                    env.GIT_BRANCH_NAME = env.GIT_BRANCH ?: env.BRANCH_NAME ?: 
+                        sh(script: "git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD", 
+                           returnStdout: true).trim()
+                    
+                    // Remove 'origin/' prefix if present
+                    env.GIT_BRANCH_NAME = env.GIT_BRANCH_NAME.replaceAll(/^origin\//, '')
 
                     if (env.GIT_BRANCH_NAME == "main") {
                         env.DEPLOY_ENV   = "production"
@@ -160,22 +163,32 @@ EOF'
                     exit 1
                 '''
             }
+            
+            // Move post actions to stage level where node context exists
+            post {
+                success {
+                    echo "Build and deployment successful on ${env.DEPLOY_ENV} (${env.SERVER_IP})"
+                }
+                failure {
+                    echo "Build or deployment failed on ${env.DEPLOY_ENV}"
+                }
+                always {
+                    echo "Cleaning up workspace..."
+                    cleanWs()
+                }
+            }
         }
     }
 
     // ============================================================
-    // Post actions
+    // Pipeline-level post actions (no cleanWs here)
     // ============================================================
     post {
         success {
-            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
+            echo "Pipeline completed successfully!"
         }
         failure {
-            echo "Deployment failed on ${DEPLOY_ENV}"
-        }
-        always {
-            echo "Cleaning up workspace..."
-            cleanWs()
+            echo "Pipeline failed. Check logs for details."
         }
     }
 }

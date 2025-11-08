@@ -59,7 +59,7 @@ export default function MonitoringDashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get("http:// 172.26.54.239:4000/metrics");
+      const res = await axios.get("http://172.26.54.239:4000/metrics");
       setMetrics(res.data);
     } catch (e) {
       console.error("API error:", e.message);

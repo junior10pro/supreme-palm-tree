@@ -67,7 +67,19 @@ pipeline {
                     node -v
                     npm -v
                     cd "$APP_PATH"
-                    npm ci || npm install
+                    
+                    # Clean install with proper dependency resolution
+                    echo "Installing npm dependencies..."
+                    rm -rf node_modules package-lock.json
+                    npm install
+                    
+                    # Install axios explicitly if not in package.json
+                    if ! npm list axios >/dev/null 2>&1; then
+                        echo "Installing axios..."
+                        npm install axios
+                    fi
+                    
+                    echo "Dependencies installed successfully"
                 '''
 
                 // -------------------------------
@@ -117,11 +129,11 @@ server {
     location ~* \\.(?:js|css|png|jpg|jpeg|gif|svg|ico)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800";
-        try_files $uri =404;
+        try_files \$uri =404;
     }
 
     location / {
-        try_files $uri /index.html;
+        try_files \$uri /index.html;
     }
 
     location = /healthz {
@@ -159,7 +171,7 @@ EOF'
             
             post {
                 always {
-                    echo "🧹 Cleaning up workspace on agent..."
+                    echo "Cleaning up workspace on agent..."
                     cleanWs()
                 }
             }
@@ -172,12 +184,12 @@ EOF'
     post {
         success {
             script {
-                echo "✅ Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
+                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
             }
         }
         failure {
             script {
-                echo "❌ Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
+                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
             }
         }
     }

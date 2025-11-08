@@ -10,11 +10,10 @@ pipeline {
             agent any
             steps {
                 script {
-                    // Detect current Git branch
-                    env.GIT_BRANCH_NAME = sh(
-                        script: "git rev-parse --abbrev-ref HEAD",
-                        returnStdout: true
-                    ).trim()
+                    // Use Jenkins environment variables for branch detection
+                    env.GIT_BRANCH_NAME = env.BRANCH_NAME ?: env.GIT_BRANCH?.replaceFirst(/^origin\//, '') ?: 'unknown'
+                    
+                    echo "Detected Git branch: ${env.GIT_BRANCH_NAME}"
 
                     // Determine target environment and Jenkins agent
                     if (env.GIT_BRANCH_NAME == "main") {
@@ -158,18 +157,24 @@ EOF'
     }
 
     // ============================================================
-    // 3️Post actions
+    // Post actions
     // ============================================================
     post {
         success {
-            echo "Deployment successful on ${DEPLOY_ENV} (${SERVER_IP})"
+            script {
+                echo "Deployment successful on ${env.DEPLOY_ENV ?: 'unknown'} (${env.SERVER_IP ?: 'N/A'})"
+            }
         }
         failure {
-            echo "Deployment failed on ${DEPLOY_ENV}"
+            script {
+                echo "Deployment failed on ${env.DEPLOY_ENV ?: 'unknown'}"
+            }
         }
         always {
-            echo "🧹 Cleaning up workspace..."
-            cleanWs()
+            node('master') {
+                echo "🧹 Cleaning up workspace..."
+                cleanWs()
+            }
         }
     }
 }

@@ -69,10 +69,22 @@ pipeline {
                         sudo apt-get update -y
                         sudo apt-get install -y nodejs npm
                     fi
-                    node -v
-                    npm -v
+                    
+                    echo "Node version: $(node -v)"
+                    echo "NPM version: $(npm -v)"
+                    
                     cd "$APP_PATH"
-                    npm ci || npm install
+                    
+                    # Check for package-lock.json
+                    if [ -f "package-lock.json" ]; then
+                        echo "Found package-lock.json, using npm ci for clean install..."
+                        npm ci
+                    else
+                        echo "No package-lock.json found, using npm install..."
+                        npm install
+                    fi
+                    
+                    echo "Dependencies installed successfully."
                 '''
 
                 // -------------------------------
@@ -82,6 +94,7 @@ pipeline {
                     echo "Building React application..."
                     cd "$APP_PATH"
                     npm run build
+                    echo "Build completed successfully."
                 '''
 
                 // -------------------------------
@@ -92,22 +105,26 @@ pipeline {
 
                     # Stop Apache if it exists
                     if systemctl list-units --type=service | grep -q apache2; then
+                        echo "Stopping Apache2..."
                         sudo systemctl stop apache2 || true
                         sudo systemctl disable apache2 || true
                     fi
 
                     # Install NGINX if needed
                     if ! dpkg -s nginx >/dev/null 2>&1; then
+                        echo "Installing NGINX..."
                         sudo apt-get update -y
                         sudo apt-get install -y nginx
                     fi
 
                     # Deploy build files
+                    echo "Deploying build files to $DEPLOY_PATH..."
                     sudo mkdir -p "$DEPLOY_PATH"
                     sudo rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_PATH"/
                     sudo chown -R www-data:www-data "$DEPLOY_PATH"
 
                     # Create NGINX site configuration
+                    echo "Configuring NGINX..."
                     sudo bash -c 'cat > '"$NGINX_SITE"' <<EOF
 server {
     listen 80;
@@ -138,9 +155,15 @@ EOF'
 
                     sudo ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/devops-dashboard
                     sudo rm -f /etc/nginx/sites-enabled/default
+                    
+                    echo "Testing NGINX configuration..."
                     sudo nginx -t
+                    
+                    echo "Enabling and reloading NGINX..."
                     sudo systemctl enable nginx
                     sudo systemctl reload nginx
+                    
+                    echo "NGINX configuration completed."
                 '''
 
                 // -------------------------------
@@ -150,24 +173,34 @@ EOF'
                     echo "Performing health check..."
                     for i in $(seq 1 10); do
                         if curl -fsS "http://$SERVER_IP/healthz" >/dev/null; then
-                            echo "Health check OK."
+                            echo "✓ Health check passed!"
+                            echo "Application is available at: http://$SERVER_IP"
                             exit 0
                         fi
                         echo "Waiting for NGINX to respond... ($i/10)"
                         sleep 2
                     done
-                    echo "Health check failed."
+                    echo "✗ Health check failed - application may not be responding."
                     exit 1
                 '''
             }
             
-            // Move post actions to stage level where node context exists
+            // Stage-level post actions
             post {
                 success {
-                    echo "Build and deployment successful on ${env.DEPLOY_ENV} (${env.SERVER_IP})"
+                    echo "=========================================="
+                    echo "✓ Deployment successful!"
+                    echo "Environment: ${env.DEPLOY_ENV}"
+                    echo "Server IP: ${env.SERVER_IP}"
+                    echo "URL: http://${env.SERVER_IP}"
+                    echo "=========================================="
                 }
                 failure {
-                    echo "Build or deployment failed on ${env.DEPLOY_ENV}"
+                    echo "=========================================="
+                    echo "✗ Deployment failed!"
+                    echo "Environment: ${env.DEPLOY_ENV}"
+                    echo "Check logs above for details."
+                    echo "=========================================="
                 }
                 always {
                     echo "Cleaning up workspace..."
@@ -178,14 +211,14 @@ EOF'
     }
 
     // ============================================================
-    // Pipeline-level post actions (no cleanWs here)
+    // Pipeline-level post actions
     // ============================================================
     post {
         success {
-            echo "Pipeline completed successfully!"
+            echo "Pipeline completed successfully! 🎉"
         }
         failure {
-            echo "Pipeline failed. Check logs for details."
+            echo "Pipeline failed. Check logs for details. ❌"
         }
     }
 }
